@@ -111,28 +111,46 @@ func printSlice(i []uint) string {
 func readInput(reader *bufio.Reader) ([]uint, uint) {
 	var records []uint
 	var bitLength uint
+
+	// Read first line
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		panic(fmt.Errorf("Error reading first line: %s\n", err.Error()))
+	}
+
+	// Set the bitLength accounting for the \n at the end
+	bitLength = uint(len(line) - 1)
+	firstRecord, err := parseLine(line)
+	if err != nil {
+		panic(fmt.Errorf("Error reading first line: %v", err))
+	}
+
+	// Insert the first record into the slice
+	records = append(records, firstRecord)
+
+	// Loop through the remaining input and load into memory
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Println(err.Error())
-			break
+			break // end read on EOF
 		}
-		line = strings.Trim(line, "\n")
-		r, err := strconv.ParseUint(line, 2, 16)
-		record := uint(r)
-		fmt.Printf("Record %04d: %016b\n", len(records), record)
+		record, err := parseLine(line)
 		if err != nil {
+			// If a line can't be parsed for some reason, just skip it
 			continue
 		}
 		records = append(records, record)
-
-		if bitLength == 0 {
-			fmt.Println("Setup...")
-			if err != nil {
-				panic(fmt.Errorf("Error reading first line: %s\n", err.Error()))
-			}
-			bitLength = uint(len(line))
-		}
 	}
 	return records, bitLength
+}
+
+func parseLine(line string) (uint, error) {
+	line = strings.Trim(line, "\n")
+	r, err := strconv.ParseUint(line, 2, 16)
+	record := uint(r)
+	if err != nil {
+		return 0, err
+	}
+	return record, nil
 }
