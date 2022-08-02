@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -9,14 +10,107 @@ import (
 )
 
 func main() {
-	var bitcounts []uint // Count of each bit
-	var bitLength int    // Total width of incoming bitstream
-	var bitMask uint     // Mask representing the bitstream width
-	var records uint     // Number of records processed
-	var gamma uint       // Output variable
-	var epsilon uint     // Output variable
+	var gamma uint   // Output variable
+	var epsilon uint // Output variable
+	//var oxygen uint      // Output variable
+	//var co2 uint // Output variable
 
-	reader := bufio.NewReader(os.Stdin)
+	// Read input
+	records, bitLength := readInput(bufio.NewReader(os.Stdin))
+
+	// Set bitMask
+	var bitMask uint // Mask representing the bitstream width
+	for i := uint(0); i < bitLength; i++ {
+		bitMask = bitMask | (1 << i)
+	}
+	fmt.Printf("bitMask set to %017b\n", bitMask)
+	bitcounts := countBits(records, bitLength)
+
+	// Calculate gamma
+	for i, k := range bitcounts {
+		if k >= (uint(len(records)) >> 1) {
+			gamma = gamma | (1 << i)
+		}
+	}
+
+	// Calculate epsilon
+	epsilon = (^gamma) & bitMask
+
+	/* o2Rating, err := filterDown(records, gamma, bitLength)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Printf("o2Rating: %d\n", o2Rating)
+
+	co2Rating, err := filterDown(records, epsilon, bitLength)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	fmt.Printf("co2Rating: %d\n", co2Rating) */
+
+	// Display answers
+	fmt.Printf("%8s : %d\n%8s : %016b (%d)\n%8s : %016b (%d)\n%8s : %d\n", "records", len(records), "gamma", gamma, gamma, "epsilon", epsilon, epsilon, "answer1", gamma*epsilon)
+}
+
+func filter(in []uint, pred func(uint) bool) []uint {
+	var out []uint
+	for _, e := range in {
+		if pred(e) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+func filterDown(in []uint, comparison uint, bitLength uint) (uint, error) {
+	out := make([]uint, len(in), len(in))
+	copy(out, in)
+
+	var i uint
+	for i = uint(bitLength - 1); i >= 0; i-- {
+		mask := uint(1 << i)
+		fmt.Printf("\nBefore checking bit %d, %d items exist in the list\n", i, len(out))
+		out = filter(out, func(e uint) bool {
+			fmt.Printf("i: %d\ne: %05b\nm: %05b\nc: %05b\nl: %05b\nr: %05b\n\n", i, e, mask, comparison, e&mask, comparison&mask)
+			return e&mask == comparison&mask
+		})
+		fmt.Printf("After checking bit %d, %d items remain in the list\n", i, len(out))
+		if len(out) == 1 {
+			return out[0], nil
+		} else if len(out) == 0 {
+			break
+		}
+	}
+	return 0, errors.New("couldn't find a proper thing to return")
+}
+
+func countBits(records []uint, bitLength uint) []uint {
+	bitcounts := make([]uint, bitLength, bitLength)
+	for _, v := range records {
+		for i := bitLength - 1; i > 0; i-- {
+			if v&(1<<i) != 0 {
+				bitcounts[i]++
+			}
+			if i > bitLength {
+				panic(fmt.Errorf("i is like, huge: %d", i))
+			}
+		}
+	}
+	return bitcounts
+}
+
+func printSlice(i []uint) string {
+	out := "[ "
+	for _, j := range i {
+		out += fmt.Sprintf("%05b ", j)
+	}
+	out += "]"
+	return out
+}
+
+func readInput(reader *bufio.Reader) ([]uint, uint) {
+	var records []uint
+	var bitLength uint
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -24,40 +118,21 @@ func main() {
 			break
 		}
 		line = strings.Trim(line, "\n")
-		record, err := strconv.ParseUint(line, 2, 16)
+		r, err := strconv.ParseUint(line, 2, 16)
+		record := uint(r)
+		fmt.Printf("Record %04d: %016b\n", len(records), record)
 		if err != nil {
 			continue
 		}
-		records++
+		records = append(records, record)
 
 		if bitLength == 0 {
 			fmt.Println("Setup...")
 			if err != nil {
-				fmt.Printf("Error reading first line: %s\n", err.Error())
-				return
+				panic(fmt.Errorf("Error reading first line: %s\n", err.Error()))
 			}
-			bitLength = len(line)
-			bitcounts = make([]uint, len(line), len(line))
-			for i := 0; i < bitLength; i++ {
-				bitMask = bitMask | (1 << i)
-			}
-			fmt.Printf("bitLength: %d\nbitMask: %032b\nbitcounts: %+v\n", bitLength, bitMask, bitcounts)
-			fmt.Println("Processing...")
-		}
-		fmt.Printf("Record %04d: %016b\n", records-1, record)
-		for i := 0; i < bitLength; i++ {
-			if record&(1<<i) != 0 {
-				bitcounts[bitLength-i-1] += 1
-			}
+			bitLength = uint(len(line))
 		}
 	}
-	fmt.Printf("bitcounts: %+v\n", bitcounts)
-	for _, k := range bitcounts {
-		gamma = gamma << 1
-		if k >= (records >> 1) {
-			gamma += 1
-		}
-	}
-	epsilon = (^gamma) & bitMask
-	fmt.Printf("%8s : %d\n%8s : %016b\n%8s : %016b\n%8s : %d\n", "records", records, "gamma", gamma, "epsilon", epsilon, "answer1", gamma*epsilon)
+	return records, bitLength
 }
